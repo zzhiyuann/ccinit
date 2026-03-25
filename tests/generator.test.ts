@@ -186,11 +186,37 @@ describe("generateSettings", () => {
     expect(git["args"]).toEqual(["-y", "@anthropic/mcp-git"]);
   });
 
-  it("returns null when hasGit is false", () => {
+  it("returns filesystem and context7 even when hasGit is false", () => {
     const profile = makeProfile({ hasGit: false });
     const settings = generateSettings(profile);
 
-    expect(settings).toBeNull();
+    expect(settings).not.toBeNull();
+    const servers = (settings as Record<string, unknown>)["mcpServers"] as Record<string, unknown>;
+    expect(servers).toHaveProperty("filesystem");
+    expect(servers).toHaveProperty("context7");
+    expect(servers).not.toHaveProperty("git");
+  });
+
+  it("recommends puppeteer for web frontend projects", () => {
+    const profile = makeProfile({
+      frameworks: [{ name: "React", category: "web" }],
+    });
+    const settings = generateSettings(profile);
+
+    expect(settings).not.toBeNull();
+    const servers = (settings as Record<string, unknown>)["mcpServers"] as Record<string, unknown>;
+    expect(servers).toHaveProperty("puppeteer");
+  });
+
+  it("recommends postgres for projects with database signals", () => {
+    const profile = makeProfile({
+      directories: ["migrations", "src"],
+    });
+    const settings = generateSettings(profile);
+
+    expect(settings).not.toBeNull();
+    const servers = (settings as Record<string, unknown>)["mcpServers"] as Record<string, unknown>;
+    expect(servers).toHaveProperty("postgres");
   });
 });
 
@@ -262,6 +288,80 @@ describe("generateCommands", () => {
     expect(review?.content).toContain("performance");
     expect(review?.content).toContain("readability");
   });
+
+  it("generates component command for React projects", () => {
+    const profile = makeProfile({
+      frameworks: [{ name: "React", category: "web" }],
+    });
+    const commands = generateCommands(profile);
+    const names = commands.map((c) => c.name);
+
+    expect(names).toContain("component");
+    const cmd = commands.find((c) => c.name === "component");
+    expect(cmd?.content).toContain("props");
+    expect(cmd?.content).toContain("accessibility");
+  });
+
+  it("generates build-prod command for Next.js projects", () => {
+    const profile = makeProfile({
+      frameworks: [
+        { name: "Next.js", category: "web" },
+        { name: "React", category: "web" },
+      ],
+    });
+    const commands = generateCommands(profile);
+    const names = commands.map((c) => c.name);
+
+    expect(names).toContain("build-prod");
+    expect(names).toContain("component");
+  });
+
+  it("generates migrate command for Django projects", () => {
+    const profile = makeProfile({
+      language: "python",
+      frameworks: [{ name: "Django", category: "web" }],
+    });
+    const commands = generateCommands(profile);
+    const names = commands.map((c) => c.name);
+
+    expect(names).toContain("migrate");
+    const cmd = commands.find((c) => c.name === "migrate");
+    expect(cmd?.content).toContain("manage.py");
+  });
+
+  it("generates routes command for FastAPI projects", () => {
+    const profile = makeProfile({
+      language: "python",
+      frameworks: [{ name: "FastAPI", category: "api" }],
+    });
+    const commands = generateCommands(profile);
+    const names = commands.map((c) => c.name);
+
+    expect(names).toContain("routes");
+  });
+
+  it("generates check command for Rust projects", () => {
+    const profile = makeProfile({
+      language: "rust",
+      frameworks: [],
+    });
+    const commands = generateCommands(profile);
+    const names = commands.map((c) => c.name);
+
+    expect(names).toContain("check");
+    const cmd = commands.find((c) => c.name === "check");
+    expect(cmd?.content).toContain("cargo clippy");
+  });
+
+  it("generates schema command for projects with migrations", () => {
+    const profile = makeProfile({
+      directories: ["src", "migrations"],
+    });
+    const commands = generateCommands(profile);
+    const names = commands.map((c) => c.name);
+
+    expect(names).toContain("schema");
+  });
 });
 
 describe("generateConfig", () => {
@@ -290,10 +390,14 @@ describe("generateConfig", () => {
     expect(config.commands.length).toBeGreaterThan(0);
   });
 
-  it("returns null settings when no git", () => {
+  it("returns settings with filesystem and context7 even without git", () => {
     const profile = makeProfile({ hasGit: false });
     const config = generateConfig(profile);
 
-    expect(config.settings).toBeNull();
+    expect(config.settings).not.toBeNull();
+    const servers = (config.settings as Record<string, unknown>)["mcpServers"] as Record<string, unknown>;
+    expect(servers).toHaveProperty("filesystem");
+    expect(servers).toHaveProperty("context7");
+    expect(servers).not.toHaveProperty("git");
   });
 });

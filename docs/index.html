@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ccinit - Auto-generate Claude Code configuration</title>
+  <meta name="description" content="One command. Zero config. Your project is ready for Claude Code. ccinit scans your codebase and generates CLAUDE.md, MCP settings, and slash commands.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface-2: #1a1a26;
+      --border: rgba(255,255,255,0.06);
+      --border-accent: rgba(255,255,255,0.12);
+      --text: #e8e8ed;
+      --text-muted: #8888a0;
+      --text-dim: #55556a;
+      --accent: #7c6aff;
+      --accent-bright: #9d8cff;
+      --accent-glow: rgba(124,106,255,0.15);
+      --green: #34d399;
+      --green-dim: rgba(52,211,153,0.15);
+      --amber: #fbbf24;
+      --cyan: #22d3ee;
+      --rose: #fb7185;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', -apple-system, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Grain overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      pointer-events: none;
+      opacity: 0.015;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    /* Ambient glow */
+    .ambient-glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.08;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow-1 { background: var(--accent); top: -200px; left: -100px; }
+    .glow-2 { background: var(--green); bottom: -200px; right: -100px; }
+    .glow-3 { background: var(--cyan); top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.03; }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ---- Nav ---- */
+    nav {
+      padding: 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-brand {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+    .nav-brand span { color: var(--accent-bright); }
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-github {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-accent);
+      padding: 8px 16px;
+      border-radius: 8px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .nav-github:hover {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+    }
+    .nav-github svg { width: 18px; height: 18px; fill: currentColor; }
+
+    /* ---- Hero ---- */
+    .hero {
+      padding: 100px 0 80px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-glow);
+      border: 1px solid rgba(124,106,255,0.25);
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent-bright);
+      margin-bottom: 32px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .hero-badge .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    h1 {
+      font-size: clamp(2.8rem, 6vw, 4.5rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -2px;
+      margin-bottom: 24px;
+    }
+    h1 .gradient {
+      background: linear-gradient(135deg, var(--accent-bright), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 540px;
+      margin: 0 auto 48px;
+      line-height: 1.6;
+    }
+    .hero-cta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* Copy command button */
+    .cmd-copy {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border-accent);
+      padding: 16px 28px;
+      border-radius: 12px;
+      font-family: var(--mono);
+      font-size: 1.1rem;
+      color: var(--green);
+      cursor: pointer;
+      transition: all 0.25s;
+      position: relative;
+    }
+    .cmd-copy:hover {
+      border-color: var(--green);
+      box-shadow: 0 0 30px rgba(52,211,153,0.1);
+    }
+    .cmd-copy .prompt { color: var(--text-dim); }
+    .cmd-copy .copy-icon {
+      width: 18px;
+      height: 18px;
+      color: var(--text-dim);
+      transition: color 0.2s;
+    }
+    .cmd-copy:hover .copy-icon { color: var(--text-muted); }
+    .cmd-copy .copied {
+      position: absolute;
+      top: -32px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--green);
+      color: #0a0a0f;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: var(--sans);
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    .cmd-copy.copied-active .copied { opacity: 1; }
+
+    .btn-docs {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 28px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.25s;
+      background: var(--accent);
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-docs:hover {
+      background: var(--accent-bright);
+      box-shadow: 0 0 40px var(--accent-glow);
+    }
+
+    /* ---- Terminal ---- */
+    .terminal-section {
+      padding: 40px 0 100px;
+    }
+    .terminal {
+      background: #0d0d14;
+      border: 1px solid var(--border-accent);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow:
+        0 4px 6px rgba(0,0,0,0.3),
+        0 20px 60px rgba(0,0,0,0.4),
+        0 0 80px var(--accent-glow);
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 18px;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+    }
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .terminal-dot.red { background: #ff5f56; }
+    .terminal-dot.yellow { background: #ffbd2e; }
+    .terminal-dot.green { background: #27c93f; }
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+    .terminal-body {
+      padding: 24px;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      line-height: 1.8;
+      min-height: 340px;
+    }
+    .terminal-body .line {
+      opacity: 0;
+      transform: translateY(4px);
+      animation: typeLine 0.3s ease forwards;
+    }
+    @keyframes typeLine {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .t-prompt { color: var(--green); }
+    .t-cmd { color: var(--text); }
+    .t-dim { color: var(--text-dim); }
+    .t-accent { color: var(--accent-bright); }
+    .t-cyan { color: var(--cyan); }
+    .t-green { color: var(--green); }
+    .t-amber { color: var(--amber); }
+    .t-rose { color: var(--rose); }
+    .t-spinner { display: inline-block; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .t-check::before { content: '\2713 '; color: var(--green); }
+
+    /* ---- Features Grid ---- */
+    .features {
+      padding: 100px 0;
+    }
+    .section-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent-bright);
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+    .section-desc {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 500px;
+      margin-bottom: 56px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 28px;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .feature-card:hover {
+      border-color: var(--border-accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    }
+    .feature-card:hover::before { opacity: 1; }
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 1.3rem;
+    }
+    .feature-icon.purple { background: var(--accent-glow); color: var(--accent-bright); }
+    .feature-icon.green { background: var(--green-dim); color: var(--green); }
+    .feature-icon.cyan { background: rgba(34,211,238,0.12); color: var(--cyan); }
+    .feature-icon.amber { background: rgba(251,191,36,0.12); color: var(--amber); }
+    .feature-icon.rose { background: rgba(251,113,133,0.12); color: var(--rose); }
+    .feature-icon.blue { background: rgba(96,165,250,0.12); color: #60a5fa; }
+    .feature-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: -0.3px;
+    }
+    .feature-card p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ---- Detection Table ---- */
+    .detection {
+      padding: 80px 0 100px;
+    }
+    .detection-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2px;
+      background: var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .detection-cell {
+      background: var(--surface);
+      padding: 28px 32px;
+      transition: background 0.2s;
+    }
+    .detection-cell:hover {
+      background: var(--surface-2);
+    }
+    .detection-cell h4 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+    .detection-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .tag {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      font-family: var(--mono);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .tag:hover {
+      color: var(--text);
+      border-color: var(--border-accent);
+    }
+
+    /* ---- Output Preview ---- */
+    .output-section {
+      padding: 80px 0 100px;
+    }
+    .output-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .output-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .output-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 20px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .output-card-header .file-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+    .output-card-body {
+      padding: 20px;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.7;
+      color: var(--text-muted);
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .output-card-body::-webkit-scrollbar { width: 4px; }
+    .output-card-body::-webkit-scrollbar-track { background: transparent; }
+    .output-card-body::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 4px; }
+
+    /* ---- CTA ---- */
+    .cta-section {
+      padding: 80px 0 120px;
+      text-align: center;
+    }
+    .cta-box {
+      background: linear-gradient(135deg, rgba(124,106,255,0.08), rgba(34,211,238,0.05));
+      border: 1px solid rgba(124,106,255,0.2);
+      border-radius: 24px;
+      padding: 64px 40px;
+    }
+    .cta-box h2 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+    .cta-box p {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      margin-bottom: 40px;
+    }
+
+    /* ---- Footer ---- */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    footer a:hover { color: var(--text); }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 768px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .detection-grid { grid-template-columns: 1fr; }
+      .output-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+      .hero { padding: 60px 0 40px; }
+      h1 { font-size: 2.4rem; letter-spacing: -1px; }
+      .hero-sub { font-size: 1.05rem; }
+      .cta-box { padding: 40px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- Nav -->
+  <div class="container">
+    <nav>
+      <a href="#" class="nav-brand"><span>cc</span>init</a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#detection">Detection</a></li>
+        <li><a href="#output">Output</a></li>
+      </ul>
+      <a href="https://github.com/zzhiyuann/ccinit" class="nav-github" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </nav>
+  </div>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        Open Source
+      </div>
+      <h1>
+        One command.<br>
+        <span class="gradient">Claude Code ready.</span>
+      </h1>
+      <p class="hero-sub">
+        ccinit scans your codebase and auto-generates the perfect Claude Code
+        configuration &mdash; CLAUDE.md, MCP servers, and slash commands.
+      </p>
+      <div class="hero-cta">
+        <button class="cmd-copy" onclick="copyCommand(this)">
+          <span class="prompt">$</span>
+          <span>npx ccinit</span>
+          <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          <span class="copied">Copied!</span>
+        </button>
+        <a href="https://github.com/zzhiyuann/ccinit#readme" class="btn-docs" target="_blank" rel="noopener">
+          Read docs &rarr;
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Terminal Demo -->
+  <section class="terminal-section">
+    <div class="container">
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+          <div class="terminal-title">~/my-nextjs-app</div>
+          <div style="width: 44px"></div>
+        </div>
+        <div class="terminal-body" id="terminal"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <div class="container">
+      <p class="section-label">Features</p>
+      <h2 class="section-title">Everything detected.<br>Nothing configured.</h2>
+      <p class="section-desc">
+        ccinit reads your project files and generates a tailored configuration
+        that helps Claude Code understand your codebase from day one.
+      </p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon purple">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+          <h3>Smart Detection</h3>
+          <p>Reads package.json, Cargo.toml, pyproject.toml, go.mod, and 40+ config files to understand your stack.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h3>MCP Servers</h3>
+          <p>Recommends the right MCP servers for your stack &mdash; Git, filesystem, Context7, Puppeteer, and database tools.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon cyan">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+          <h3>Slash Commands</h3>
+          <p>Generates /test, /dev, /review and framework-specific commands like /migrate, /routes, and /component.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon amber">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="7.5 19.79 7.5 14.6 3 12"/><polyline points="21 12 16.5 14.6 16.5 19.79"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </div>
+          <h3>Multi-Language</h3>
+          <p>TypeScript, Python, Rust, Go, Java, Ruby, C#, Swift. Detects 25+ frameworks across all major ecosystems.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon rose">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+          </div>
+          <h3>Convention Aware</h3>
+          <p>Detects ESLint, Prettier, ruff, clippy, gofmt and tells Claude Code to follow your project's style.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon blue">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <h3>Monorepo Ready</h3>
+          <p>Detects npm, yarn, and pnpm workspaces, Lerna, and Cargo workspace configurations.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Detection -->
+  <section class="detection" id="detection">
+    <div class="container">
+      <p class="section-label">Detection Engine</p>
+      <h2 class="section-title">Understands your stack</h2>
+      <p class="section-desc">
+        ccinit reads the files that already exist in your project to build a complete profile.
+      </p>
+      <div class="detection-grid">
+        <div class="detection-cell">
+          <h4>Languages</h4>
+          <div class="detection-tags">
+            <span class="tag">TypeScript</span>
+            <span class="tag">Python</span>
+            <span class="tag">Rust</span>
+            <span class="tag">Go</span>
+            <span class="tag">Java</span>
+            <span class="tag">Ruby</span>
+            <span class="tag">C#</span>
+            <span class="tag">Swift</span>
+          </div>
+        </div>
+        <div class="detection-cell">
+          <h4>Frameworks</h4>
+          <div class="detection-tags">
+            <span class="tag">Next.js</span>
+            <span class="tag">React</span>
+            <span class="tag">FastAPI</span>
+            <span class="tag">Django</span>
+            <span class="tag">Express</span>
+            <span class="tag">NestJS</span>
+            <span class="tag">Axum</span>
+            <span class="tag">Gin</span>
+          </div>
+        </div>
+        <div class="detection-cell">
+          <h4>Build Systems</h4>
+          <div class="detection-tags">
+            <span class="tag">npm</span>
+            <span class="tag">yarn</span>
+            <span class="tag">pnpm</span>
+            <span class="tag">cargo</span>
+            <span class="tag">pip</span>
+            <span class="tag">poetry</span>
+            <span class="tag">uv</span>
+            <span class="tag">go</span>
+            <span class="tag">make</span>
+          </div>
+        </div>
+        <div class="detection-cell">
+          <h4>Test Runners</h4>
+          <div class="detection-tags">
+            <span class="tag">vitest</span>
+            <span class="tag">jest</span>
+            <span class="tag">pytest</span>
+            <span class="tag">cargo test</span>
+            <span class="tag">go test</span>
+            <span class="tag">mocha</span>
+          </div>
+        </div>
+        <div class="detection-cell">
+          <h4>Linters</h4>
+          <div class="detection-tags">
+            <span class="tag">ESLint</span>
+            <span class="tag">Prettier</span>
+            <span class="tag">Biome</span>
+            <span class="tag">ruff</span>
+            <span class="tag">black</span>
+            <span class="tag">clippy</span>
+            <span class="tag">golangci-lint</span>
+          </div>
+        </div>
+        <div class="detection-cell">
+          <h4>Config Files</h4>
+          <div class="detection-tags">
+            <span class="tag">package.json</span>
+            <span class="tag">Cargo.toml</span>
+            <span class="tag">pyproject.toml</span>
+            <span class="tag">go.mod</span>
+            <span class="tag">Makefile</span>
+            <span class="tag">tsconfig.json</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Output Preview -->
+  <section class="output-section" id="output">
+    <div class="container">
+      <p class="section-label">Output</p>
+      <h2 class="section-title">Three files. Fully configured.</h2>
+      <p class="section-desc">
+        ccinit generates everything Claude Code needs to understand and work with your project.
+      </p>
+      <div class="output-grid">
+        <div class="output-card">
+          <div class="output-card-header">
+            <div class="file-icon" style="background:var(--accent-glow);color:var(--accent-bright);">M</div>
+            CLAUDE.md
+          </div>
+          <div class="output-card-body">
+<span style="color:var(--accent-bright)"># my-nextjs-app</span>
+
+<span style="color:var(--text-dim)">## Build & Run</span>
+- <span style="color:var(--green)">`npm run build`</span>
+
+Dev server:
+- <span style="color:var(--green)">`npm run dev`</span>
+
+<span style="color:var(--text-dim)">## Test</span>
+- <span style="color:var(--green)">`npm run test`</span>
+- <span style="color:var(--green)">`npm run test path/to/file.test.ts`</span>
+
+<span style="color:var(--text-dim)">## Tech Stack</span>
+- Language: TypeScript
+- Framework: Next.js, React
+- Package manager: npm
+
+<span style="color:var(--text-dim)">## Conventions</span>
+- TypeScript strict mode enabled
+- ESM modules
+- ESLint configured
+- Prettier configured
+          </div>
+        </div>
+        <div class="output-card">
+          <div class="output-card-header">
+            <div class="file-icon" style="background:var(--green-dim);color:var(--green);">S</div>
+            .claude/settings.local.json
+          </div>
+          <div class="output-card-body">
+<span style="color:var(--text-dim)">{</span>
+  <span style="color:var(--accent-bright)">"mcpServers"</span>: {
+    <span style="color:var(--cyan)">"git"</span>: {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-git"]
+    },
+    <span style="color:var(--cyan)">"filesystem"</span>: {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-filesystem", "."]
+    },
+    <span style="color:var(--cyan)">"context7"</span>: {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    <span style="color:var(--cyan)">"puppeteer"</span>: {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-puppeteer"]
+    }
+  }
+<span style="color:var(--text-dim)">}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-box">
+        <h2>Start in 3 seconds</h2>
+        <p>No install. No config. Just run the command in your project directory.</p>
+        <div class="hero-cta">
+          <button class="cmd-copy" onclick="copyCommand(this)">
+            <span class="prompt">$</span>
+            <span>npx ccinit</span>
+            <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            <span class="copied">Copied!</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <div class="container">
+    <footer>
+      <span>ccinit &mdash; MIT License</span>
+      <div style="display:flex;gap:24px;">
+        <a href="https://github.com/zzhiyuann/ccinit" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.npmjs.com/package/ccinit" target="_blank" rel="noopener">npm</a>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // Copy command
+    function copyCommand(el) {
+      navigator.clipboard.writeText('npx ccinit');
+      el.classList.add('copied-active');
+      setTimeout(() => el.classList.remove('copied-active'), 1500);
+    }
+
+    // Terminal animation
+    const lines = [
+      { text: '<span class="t-prompt">$</span> <span class="t-cmd">npx ccinit</span>', delay: 0 },
+      { text: '', delay: 300 },
+      { text: '<span class="t-accent">ccinit</span> <span class="t-dim">v1.0.0</span>', delay: 600 },
+      { text: '', delay: 700 },
+      { text: '<span class="t-dim">Scanning project...</span>', delay: 900 },
+      { text: '', delay: 1200 },
+      { text: '<span class="t-check">Detected language:</span> <span class="t-cyan">TypeScript</span>', delay: 1500 },
+      { text: '<span class="t-check">Detected framework:</span> <span class="t-cyan">Next.js</span>, <span class="t-cyan">React</span>', delay: 1800 },
+      { text: '<span class="t-check">Detected test runner:</span> <span class="t-cyan">vitest</span>', delay: 2100 },
+      { text: '<span class="t-check">Detected linter:</span> <span class="t-cyan">ESLint</span>, <span class="t-cyan">Prettier</span>', delay: 2400 },
+      { text: '<span class="t-check">Detected package manager:</span> <span class="t-cyan">npm</span>', delay: 2700 },
+      { text: '', delay: 2900 },
+      { text: '<span class="t-dim">Generating configuration...</span>', delay: 3100 },
+      { text: '', delay: 3400 },
+      { text: '<span class="t-green">Created</span> CLAUDE.md <span class="t-dim">(build, test, lint, conventions)</span>', delay: 3700 },
+      { text: '<span class="t-green">Created</span> .claude/settings.local.json <span class="t-dim">(4 MCP servers)</span>', delay: 4000 },
+      { text: '<span class="t-green">Created</span> .claude/commands/test.md', delay: 4200 },
+      { text: '<span class="t-green">Created</span> .claude/commands/dev.md', delay: 4350 },
+      { text: '<span class="t-green">Created</span> .claude/commands/review.md', delay: 4500 },
+      { text: '<span class="t-green">Created</span> .claude/commands/build-prod.md', delay: 4650 },
+      { text: '<span class="t-green">Created</span> .claude/commands/component.md', delay: 4800 },
+      { text: '', delay: 5000 },
+      { text: '<span class="t-green">Done!</span> Your project is ready for Claude Code.', delay: 5300 },
+    ];
+
+    const terminal = document.getElementById('terminal');
+
+    function runTerminal() {
+      terminal.innerHTML = '';
+      lines.forEach((l, i) => {
+        setTimeout(() => {
+          const div = document.createElement('div');
+          div.className = 'line';
+          div.style.animationDelay = '0s';
+          if (l.text === '') {
+            div.innerHTML = '&nbsp;';
+          } else {
+            div.innerHTML = l.text;
+          }
+          terminal.appendChild(div);
+          terminal.scrollTop = terminal.scrollHeight;
+        }, l.delay);
+      });
+    }
+
+    // Run on page load and repeat
+    runTerminal();
+    setInterval(runTerminal, 12000);
+
+    // Smooth scroll
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const target = document.querySelector(a.getAttribute('href'));
+        if (target) target.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  </script>
+</body>
+</html>
