@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tgz
+.DS_Store
+coverage/
+.agent-memory
+.agent-memory-index.md
+HANDOFF_TEMPLATE.md
+HANDOFF.md
+.claude/
