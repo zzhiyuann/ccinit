@@ -50,7 +50,7 @@ describe("CLI integration", () => {
   });
 
   it("scans the ccinit project itself and detects TypeScript + npm", async () => {
-    const projectRoot = "/Users/zwang/agent-workspaces/RYA-83";
+    const projectRoot = process.cwd();
     const profile = await scanProject(projectRoot);
 
     expect(profile.name).toBe("ccinit");
