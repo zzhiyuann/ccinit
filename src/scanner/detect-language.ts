@@ -79,6 +79,25 @@ async function detectCsharp(dir: string): Promise<boolean> {
   }
 }
 
+/**
+ * Detect Swift/Xcode projects by looking for .xcodeproj, .xcworkspace, or project.yml.
+ */
+async function detectXcodeProject(dir: string): Promise<boolean> {
+  // Check project.yml (XcodeGen)
+  if (await fileExists(join(dir, "project.yml"))) return true;
+
+  // Check for .xcodeproj or .xcworkspace directories
+  try {
+    const { readdir } = await import("node:fs/promises");
+    const entries = await readdir(dir);
+    return entries.some(
+      (e) => e.endsWith(".xcodeproj") || e.endsWith(".xcworkspace"),
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function detectLanguages(dir: string): Promise<LanguageResult> {
   const detected: Language[] = [];
 
@@ -122,6 +141,11 @@ export async function detectLanguages(dir: string): Promise<LanguageResult> {
     if (!detected.includes("csharp")) {
       detected.push("csharp");
     }
+  }
+
+  // Check Swift/Xcode separately (xcodeproj, xcworkspace, project.yml)
+  if (!detected.includes("swift") && (await detectXcodeProject(dir))) {
+    detected.push("swift");
   }
 
   const primary = detected[0] ?? "unknown";

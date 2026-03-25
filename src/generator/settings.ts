@@ -72,14 +72,15 @@ function recommend(profile: ProjectProfile): McpRecommendation[] {
 /** Check if the project has database-related signals. */
 function hasDatabaseSignals(profile: ProjectProfile): boolean {
   const dbConfigs = [
-    "prisma",
-    ".env",
     "docker-compose.yml",
     "docker-compose.yaml",
     "knexfile.js",
     "knexfile.ts",
     "ormconfig.json",
     "ormconfig.ts",
+    "prisma/schema.prisma",
+    "database.yml",
+    "alembic.ini",
   ];
   const hasDbConfig = profile.configFiles.some((f) =>
     dbConfigs.some((db) => f.includes(db)),

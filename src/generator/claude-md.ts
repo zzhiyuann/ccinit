@@ -216,14 +216,24 @@ function conventionsSection(profile: ProjectProfile): string | null {
 }
 
 /**
+ * Sanitize a string for safe use in markdown headings.
+ * Defense-in-depth: even if the scanner missed something, the generator
+ * must not emit control characters into CLAUDE.md (a system prompt).
+ */
+function sanitizeForMarkdown(text: string): string {
+  return text.replace(/[\x00-\x1f\x7f-\x9f]/g, "").trim();
+}
+
+/**
  * Generate CLAUDE.md content from a ProjectProfile.
  * Pure function — no file I/O.
  */
 export function generateClaudeMd(profile: ProjectProfile): string {
   const sections: string[] = [];
 
-  // Title
-  sections.push(`# ${profile.name}`);
+  // Title — sanitize to prevent markdown injection via project name
+  const safeName = sanitizeForMarkdown(profile.name);
+  sections.push(`# ${safeName}`);
 
   // Build & Run
   const build = buildSection(profile);

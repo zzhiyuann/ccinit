@@ -28,6 +28,18 @@ async function safeReadFile(filepath: string): Promise<string | null> {
 }
 
 /**
+ * Sanitize a project name to prevent markdown/prompt injection.
+ * Strips control characters (newlines, tabs, etc.) and trims whitespace.
+ * JSON.parse interprets \n as real newlines in package.json name fields,
+ * which could inject arbitrary markdown into generated CLAUDE.md (a system prompt).
+ */
+function sanitizeProjectName(name: string): string {
+  // Strip all control characters (U+0000–U+001F, U+007F, U+0080–U+009F)
+  // and trim surrounding whitespace
+  return name.replace(/[\x00-\x1f\x7f-\x9f]/g, "").trim();
+}
+
+/**
  * Detect the project name from config files, falling back to directory name.
  */
 async function detectProjectName(dir: string): Promise<string> {
@@ -37,7 +49,8 @@ async function detectProjectName(dir: string): Promise<string> {
     try {
       const pkg = JSON.parse(pkgContent) as Record<string, unknown>;
       if (typeof pkg["name"] === "string" && pkg["name"]) {
-        return pkg["name"];
+        const sanitized = sanitizeProjectName(pkg["name"]);
+        return sanitized || basename(dir);
       }
     } catch {
       // Invalid JSON
@@ -140,6 +153,10 @@ async function detectMonorepo(dir: string): Promise<boolean> {
   // Cargo workspace
   const cargoContent = await safeReadFile(join(dir, "Cargo.toml"));
   if (cargoContent && cargoContent.includes("[workspace]")) return true;
+
+  // Python uv workspace
+  const pyprojectContent = await safeReadFile(join(dir, "pyproject.toml"));
+  if (pyprojectContent && pyprojectContent.includes("[tool.uv.workspace]")) return true;
 
   return false;
 }
@@ -354,22 +371,53 @@ export async function scanProject(dir: string): Promise<ProjectProfile> {
     fileExists(join(dir, "CLAUDE.md")),
   ]);
 
+  // Subdirectory fallback: if root detection found no language, try common subdirectories
+  const FALLBACK_SUBDIRS = ["server", "backend", "app", "web", "frontend", "src"];
+  let effectiveDir = dir;
+  let effectiveLanguageResult = languageResult;
+  let effectivePackageManager = packageManager;
+
+  if (languageResult.primary === "unknown") {
+    for (const subdir of FALLBACK_SUBDIRS) {
+      const subdirPath = join(dir, subdir);
+      if (!(await fileExists(subdirPath))) continue;
+
+      const subLanguageResult = await detectLanguages(subdirPath);
+      if (subLanguageResult.primary !== "unknown") {
+        effectiveDir = subdirPath;
+        effectiveLanguageResult = subLanguageResult;
+        // Re-detect package manager for the subdirectory
+        effectivePackageManager = await detectPackageManager(subdirPath);
+        break;
+      }
+    }
+  }
+
   // These depend on language detection results
   const [frameworks, commands] = await Promise.all([
-    detectFrameworks(dir, languageResult.all),
-    detectCommands(dir, languageResult.all, packageManager),
+    detectFrameworks(effectiveDir, effectiveLanguageResult.all),
+    detectCommands(effectiveDir, effectiveLanguageResult.all, effectivePackageManager),
   ]);
+
+  // If commands came from a subdirectory, prefix them with `cd <subdir> &&`
+  const prefixCommand = (cmd: { command: string; source: string; confidence: number }) => {
+    if (effectiveDir !== dir) {
+      const subdir = effectiveDir.slice(dir.length + 1); // strip leading dir + "/"
+      return { ...cmd, command: `cd ${subdir} && ${cmd.command}` };
+    }
+    return cmd;
+  };
 
   return {
     name,
-    language: languageResult.primary,
-    languages: languageResult.all,
+    language: effectiveLanguageResult.primary,
+    languages: effectiveLanguageResult.all,
     frameworks,
-    packageManager,
-    buildCommands: commands.build,
-    testCommands: commands.test,
-    lintCommands: commands.lint,
-    devCommands: commands.dev,
+    packageManager: effectivePackageManager,
+    buildCommands: commands.build.map(prefixCommand),
+    testCommands: commands.test.map(prefixCommand),
+    lintCommands: commands.lint.map(prefixCommand),
+    devCommands: commands.dev.map(prefixCommand),
     directories,
     configFiles,
     hasGit,

@@ -246,6 +246,23 @@ async function detectGoCommands(dir: string): Promise<CommandResult> {
   return result;
 }
 
+// -- Swift/Xcode --
+
+function detectSwiftCommands(): CommandResult {
+  return {
+    build: [
+      { command: "xcodebuild build", source: "Xcode project", confidence: 0.8 },
+    ],
+    test: [
+      { command: "xcodebuild test", source: "Xcode project", confidence: 0.8 },
+    ],
+    lint: [
+      { command: "swiftlint", source: "Swift (inferred)", confidence: 0.5 },
+    ],
+    dev: [],
+  };
+}
+
 // -- Makefile --
 
 async function detectMakefileCommands(
@@ -335,6 +352,14 @@ export async function detectCommands(
     result.test.push(...goResult.test);
     result.lint.push(...goResult.lint);
     result.dev.push(...goResult.dev);
+  }
+
+  if (languages.includes("swift")) {
+    const swiftResult = detectSwiftCommands();
+    result.build.push(...swiftResult.build);
+    result.test.push(...swiftResult.test);
+    result.lint.push(...swiftResult.lint);
+    result.dev.push(...swiftResult.dev);
   }
 
   // Makefile — always check, adds to any language
